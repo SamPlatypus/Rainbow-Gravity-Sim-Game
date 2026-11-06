@@ -1,0 +1,904 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#05040d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Gravity">
+<title>Rainbow Gravity</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{
+  --ink:#f6f3ff; --dim:#d4cdf0; --panel:rgba(13,10,30,.9); --line:rgba(255,255,255,.16);
+  --chip:rgba(255,255,255,.08); --rainbow:linear-gradient(90deg,hsl(0 90% 60%),hsl(35 95% 58%),hsl(58 95% 55%),hsl(125 75% 52%),hsl(195 90% 58%),hsl(235 85% 66%),hsl(275 85% 68%));
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:#05040d;overflow:hidden;overscroll-behavior:none;color:var(--ink);
+  font:15px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;user-select:none;-webkit-user-select:none;
+  -webkit-touch-callout:none;touch-action:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#status{position:fixed;left:12px;top:calc(10px + env(safe-area-inset-top));font-size:14px;color:var(--dim);
+  pointer-events:none;text-shadow:0 1px 3px #000}
+#hint{position:fixed;left:12px;right:12px;top:calc(36px + env(safe-area-inset-top));text-align:center;font-size:15px;
+  color:var(--ink);pointer-events:none;text-shadow:0 1px 4px #000,0 0 10px #000;transition:opacity 2s}
+#ui{position:fixed;left:0;right:0;bottom:0;padding:0 10px calc(10px + env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+#ui>*{pointer-events:auto;width:min(430px,100%)}
+#panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px 14px 10px;
+  max-height:calc(100vh - 150px);overflow:auto;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+#panel[hidden]{display:none}
+.title{font-size:17px;font-weight:650;letter-spacing:.3px;background:var(--rainbow);-webkit-background-clip:text;
+  background-clip:text;color:transparent}
+.help{font-size:14px;color:var(--dim);margin:3px 0 6px}
+.row{display:flex;align-items:center;gap:10px;margin:7px 0}
+.lbl{width:60px;flex:none;font-size:14px;color:var(--dim)}
+.val{width:48px;flex:none;text-align:right;font-size:14px;font-variant-numeric:tabular-nums}
+.seg{display:flex;gap:6px;flex:1}
+.seg button{flex:1}
+button{font:inherit;font-size:14px;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:12px;
+  padding:7px 6px;min-height:38px;cursor:pointer}
+button.on{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.6)}
+.credit{font-size:13px;color:var(--dim);text-align:center;margin-top:6px}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;min-width:0;height:32px;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:var(--rainbow)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;margin-top:-9px;border-radius:50%;
+  background:#fff;border:2px solid #1a1530;box-shadow:0 0 8px rgba(255,255,255,.55)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--rainbow)}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;border:2px solid #1a1530}
+#masses{display:flex;gap:6px}
+#masses button{flex:1;min-width:0;padding:6px 2px;min-height:40px;background:rgba(10,8,24,.72);
+  display:flex;align-items:center;justify-content:center;gap:6px}
+#masses button.on{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.75)}
+#masses .dot{flex:none;border-radius:50%;box-shadow:0 0 6px rgba(255,255,255,.35);
+  background:conic-gradient(hsl(0 95% 62%),hsl(45 95% 60%),hsl(110 85% 55%),hsl(190 90% 60%),hsl(240 85% 66%),hsl(290 85% 66%),hsl(360 95% 62%))}
+@media (max-width:350px){#masses button{font-size:13px;gap:4px}}
+#bar{display:flex;gap:8px;align-items:center}
+#bar .side{flex:1;background:rgba(10,8,24,.72)}
+#dots{width:76px;flex:none;font-size:20px;letter-spacing:3px;line-height:1;background:rgba(10,8,24,.72)}
+#dots.on{background:rgba(255,255,255,.2)}
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+<div id="status"></div>
+<div id="hint">Drag to fling a world · Tap to drop it into orbit</div>
+<div id="ui">
+  <div id="panel">
+    <div class="title">Rainbow Gravity</div>
+    <div class="help">Welcome. Drag to fling a world, tap (or hold still) to drop it into orbit. Two fingers zoom and pan.</div>
+    <div class="row"><span class="lbl">Time</span><input id="time" type="range" min="0" max="100" step="0.5"><span class="val" id="timeVal"></span></div>
+    <div class="row"><span class="lbl">Trails</span><input id="trail" type="range" min="0" max="300" step="10" value="150"><span class="val" id="trailVal"></span></div>
+    <div class="row"><span class="lbl">Glow</span><input id="glow" type="range" min="0" max="160" step="5" value="100"><span class="val" id="glowVal"></span></div>
+    <div class="row"><span class="lbl">Colour</span><div class="seg" id="tcol"><button data-v="planet" class="on">By planet</button><button data-v="speed">By speed</button></div></div>
+    <div class="row"><span class="lbl">Camera</span><div class="seg" id="cam"><button data-v="centre" class="on">Centre</button><button data-v="free">Free</button></div></div>
+    <div class="row"><div class="seg" id="scenes"><button data-v="sun">Sun</button><button data-v="binary">Binary</button><button data-v="eight">Figure 8</button><button data-v="empty">Empty</button></div></div>
+    <div class="credit">by @SamAndNinjaCat</div>
+  </div>
+  <div id="masses"></div>
+  <div id="bar"><button id="pause" class="side">Pause</button><button id="dots" class="on" aria-label="Menu">•••</button><button id="clear" class="side">Clear</button></div>
+</div>
+
+<script>
+'use strict';
+/* ================= PHYSICS (pure maths, no screen code) ================= */
+/*PHYSICS-START*/
+const Phys = (function () {
+  // Units: distance = world units (1 unit = 1 screen px at zoom 1), time = simulated seconds.
+  const G = 4000;          // gravitational constant (units^3 / mass / s^2)
+  const EPS = 3;           // Plummer softening length: keeps very close passes finite
+  const EPS2 = EPS * EPS;
+  const DT = 1 / 240;      // fixed step. Time scale changes HOW MANY steps run, never their size,
+                           // so the symplectic leapfrog stays stable at every speed.
+  let nextId = 1;
+
+  // Constant-density worlds: volume grows with mass, so radius grows with the cube root.
+  function radiusFor(m) { return 3 * Math.cbrt(m) + 1.5; }
+
+  function body(x, y, vx, vy, m, hue) {
+    return { id: nextId++, x, y, vx, vy, ax: 0, ay: 0, m, r: radiusFor(m), hue: hue || 0, dead: false, trail: null };
+  }
+
+  // Softened Newtonian gravity for every pair, each pair visited once (Newton's third law).
+  // a_i += G m_j (x_j - x_i) / (|d|^2 + eps^2)^(3/2)
+  // When `pairs` is an array, overlapping pairs are recorded for merging.
+  function accel(B, pairs) {
+    const n = B.length;
+    for (let i = 0; i < n; i++) { B[i].ax = 0; B[i].ay = 0; }
+    for (let i = 0; i < n; i++) {
+      const a = B[i];
+      const px = a.x, py = a.y, am = a.m, ar = a.r;
+      let ax = a.ax, ay = a.ay;
+      for (let j = i + 1; j < n; j++) {
+        const b = B[j];
+        const dx = b.x - px, dy = b.y - py;
+        const d2 = dx * dx + dy * dy;
+        const s = d2 + EPS2;
+        const f = G / (s * Math.sqrt(s));
+        ax += dx * f * b.m; ay += dy * f * b.m;
+        b.ax -= dx * f * am; b.ay -= dy * f * am;
+        if (pairs !== null) { const rr = ar + b.r; if (d2 < rr * rr) pairs.push(i, j); }
+      }
+      a.ax = ax; a.ay = ay;
+    }
+  }
+
+  // Mass-weighted average of two hues on the colour wheel.
+  function mixHue(h1, m1, h2, m2) {
+    const r = Math.PI / 180;
+    const x = Math.cos(h1 * r) * m1 + Math.cos(h2 * r) * m2;
+    const y = Math.sin(h1 * r) * m1 + Math.sin(h2 * r) * m2;
+    let h = Math.atan2(y, x) / r;
+    if (h < 0) h += 360;
+    return h >= 360 ? 0 : h;
+  }
+
+  function compact(B) {
+    let w = 0;
+    for (let i = 0; i < B.length; i++) if (!B[i].dead) B[w++] = B[i];
+    B.length = w;
+  }
+
+  // Perfectly inelastic merge: mass and momentum conserved, the heavier world keeps its identity.
+  function merge(B, pairs, onMerge) {
+    let merged = 0;
+    for (let k = 0; k < pairs.length; k += 2) {
+      let a = B[pairs[k]], b = B[pairs[k + 1]];
+      if (a.dead || b.dead) continue;
+      if (b.m > a.m) { const t = a; a = b; b = t; }
+      if (onMerge) onMerge(a, b);
+      const M = a.m + b.m;
+      a.x = (a.x * a.m + b.x * b.m) / M;
+      a.y = (a.y * a.m + b.y * b.m) / M;
+      a.vx = (a.vx * a.m + b.vx * b.m) / M;
+      a.vy = (a.vy * a.m + b.vy * b.m) / M;
+      a.hue = mixHue(a.hue, a.m, b.hue, b.m);
+      a.m = M; a.r = radiusFor(M);
+      b.dead = true; merged++;
+    }
+    if (merged) compact(B);
+    return merged;
+  }
+
+  // One kick-drift-kick leapfrog (velocity Verlet) step. Accelerations must be current on entry.
+  function step(B, dt, pairs, onMerge) {
+    const h = dt * 0.5, n = B.length;
+    for (let i = 0; i < n; i++) {
+      const b = B[i];
+      b.vx += b.ax * h; b.vy += b.ay * h;
+      b.x += b.vx * dt; b.y += b.vy * dt;
+    }
+    pairs.length = 0;
+    accel(B, pairs);
+    for (let i = 0; i < n; i++) { const b = B[i]; b.vx += b.ax * h; b.vy += b.ay * h; }
+    if (pairs.length && merge(B, pairs, onMerge)) { accel(B, null); return true; }
+    return false;
+  }
+
+  function com(B) {
+    let m = 0, x = 0, y = 0, vx = 0, vy = 0;
+    for (const b of B) { m += b.m; x += b.x * b.m; y += b.y * b.m; vx += b.vx * b.m; vy += b.vy * b.m; }
+    if (!m) return { x: 0, y: 0, vx: 0, vy: 0, m: 0 };
+    return { x: x / m, y: y / m, vx: vx / m, vy: vy / m, m };
+  }
+
+  // Galilean boost into the centre-of-mass frame: total momentum becomes zero, so the
+  // system as a whole never drifts off screen. Relative motion is unchanged.
+  function zeroMomentum(B) {
+    const c = com(B);
+    for (const b of B) { b.vx -= c.vx; b.vy -= c.vy; }
+  }
+
+  function energy(B) {
+    let k = 0, u = 0;
+    for (let i = 0; i < B.length; i++) {
+      const a = B[i];
+      k += 0.5 * a.m * (a.vx * a.vx + a.vy * a.vy);
+      for (let j = i + 1; j < B.length; j++) {
+        const b = B[j], dx = b.x - a.x, dy = b.y - a.y;
+        u -= G * a.m * b.m / Math.sqrt(dx * dx + dy * dy + EPS2);
+      }
+    }
+    return k + u;
+  }
+
+  // Exact circular speed (relative) for two bodies under the softened force law:
+  // v^2 / r = G (M + m) r / (r^2 + eps^2)^(3/2)
+  function orbitSpeed(M, m, r) {
+    return r * Math.sqrt(G * (M + m) / Math.pow(r * r + EPS2, 1.5));
+  }
+
+  // Circular orbit of a new world (x, y, m) around one attractor A, counter-clockwise on screen
+  // (dir = -1 for clockwise). Velocities are split so the pair's centre of mass keeps A's velocity.
+  function orbitAround(A, x, y, m, dir) {
+    const dx = x - A.x, dy = y - A.y, r = Math.hypot(dx, dy);
+    if (r < 1e-9) return { vx: A.vx, vy: A.vy, dax: 0, day: 0 };
+    const v = orbitSpeed(A.m, m, r) * (dir || 1);
+    const ux = dy / r, uy = -dx / r;
+    const f = A.m / (A.m + m), g = m / (A.m + m);
+    return { vx: A.vx + ux * v * f, vy: A.vy + uy * v * f, dax: -ux * v * g, day: -uy * v * g };
+  }
+
+  // Which body should a tapped world orbit? Start from the strongest pull, then climb the
+  // hierarchy using the attractor's Hill sphere, r_H = a (m / 3M)^(1/3):
+  //   inside 0.65 r_H -> become its moon, orbiting backwards (retrograde). Tested: forward moons
+  //                      get stretched by the primary's tide until they graze the surface, while
+  //                      backward moons stay near-circular right out to 0.65 r_H.
+  //   beyond          -> the attractor's own primary is the real host
+  // Top-level orbits go forwards (counter-clockwise). Close heavy pairs are orbited as one group.
+  function planOrbit(B, x, y, m) {
+    if (!B.length) return { vx: 0, vy: 0, recoil: null };
+    let ai = 0, best = -1, dir = 1;
+    for (let i = 0; i < B.length; i++) {
+      const b = B[i], dx = b.x - x, dy = b.y - y;
+      const p = b.m / (dx * dx + dy * dy + EPS2);
+      if (p > best) { best = p; ai = i; }
+    }
+    for (let k = 0; k < 8; k++) {
+      const A = B[ai];
+      let pi = -1, pb = -1;
+      for (let i = 0; i < B.length; i++) {
+        const b = B[i];
+        if (i === ai || b.m <= A.m) continue;
+        const dx = b.x - A.x, dy = b.y - A.y;
+        const q = b.m / (dx * dx + dy * dy + EPS2);
+        if (q > pb) { pb = q; pi = i; }
+      }
+      if (pi < 0) break;
+      const P = B[pi];
+      const rH = Math.hypot(P.x - A.x, P.y - A.y) * Math.cbrt(A.m / (3 * P.m));
+      const d = Math.hypot(x - A.x, y - A.y);
+      if (d < 0.65 * rH) { dir = -1; break; }
+      ai = pi; dir = 1;
+    }
+    const A = B[ai], d0 = Math.hypot(x - A.x, y - A.y);
+    let M = 0, cx = 0, cy = 0, cvx = 0, cvy = 0, count = 0, I = 0, partner = null;
+    for (const b of B) {
+      if (b === A || (b.m >= 0.25 * A.m && Math.hypot(b.x - A.x, b.y - A.y) < 0.5 * d0)) {
+        M += b.m; cx += b.x * b.m; cy += b.y * b.m; cvx += b.vx * b.m; cvy += b.vy * b.m; count++;
+        if (b !== A) partner = b;
+      }
+    }
+    if (count === 1) {
+      const o = orbitAround(A, x, y, m, dir);
+      return { vx: o.vx, vy: o.vy, recoil: { i: ai, dvx: o.dax, dvy: o.day } };
+    }
+    cx /= M; cy /= M; cvx /= M; cvy /= M;
+    const dx = x - cx, dy = y - cy, r = Math.hypot(dx, dy);
+    // Quadrupole correction for orbiting a close pair: v^2 = GM/r [1 + 3/4 mu (a/r)^2]
+    let corr = 1;
+    if (count === 2 && partner) {
+      const a = Math.hypot(partner.x - A.x, partner.y - A.y), mu = A.m * partner.m / (M * M);
+      corr = Math.sqrt(1 + 0.75 * mu * (a / r) * (a / r));
+    }
+    const v = orbitSpeed(M, m, r) * corr * dir;
+    return { vx: cvx + (dy / r) * v, vy: cvy + (-dx / r) * v, recoil: null };
+  }
+
+  // Starting scenes. All end in the centre-of-mass frame, centred on the origin.
+  function scene(name) {
+    const B = [];
+    const add = (b) => (B.push(b), b);
+    const orbit = (A, r, ang, m, hue, dir) => {
+      const x = A.x + r * Math.cos(ang), y = A.y + r * Math.sin(ang);
+      const o = orbitAround(A, x, y, m, dir);
+      A.vx += o.dax; A.vy += o.day;
+      return add(body(x, y, o.vx, o.vy, m, hue));
+    };
+    if (name === 'sun') {
+      // Built from the outside in, so each recoil on the sun happens before the inner orbits
+      // are set relative to it. Spacing is several mutual Hill radii, r_H = a ((m1+m2)/3M)^(1/3),
+      // so the system stays together (tested: no collisions in 30 simulated minutes).
+      // The planet's moon orbits backwards: retrograde moons stay bound further out.
+      const S = add(body(0, 0, 0, 0, 3000, 45));
+      orbit(S, 460, 5.7, 5, 250);
+      const P = orbit(S, 280, 4.1, 25, 125);
+      orbit(P, 22, 1.0, 1, 185, -1);
+      orbit(S, 165, 2.4, 5, 28);
+      orbit(S, 105, 0.5, 1, 0);
+    } else if (name === 'binary') {
+      // Two Star-mass suns in a circular dance, planets outside the binary's unstable zone
+      // (about 2.4x the separation for an equal pair).
+      const A = add(body(-60, 0, 0, 0, 1000, 12));
+      const C = add(body(60, 0, 0, 0, 1000, 285));
+      const o = orbitAround(A, C.x, C.y, C.m);
+      C.vx = o.vx; C.vy = o.vy; A.vx += o.dax; A.vy += o.day;
+      const sep = 120, mu = 0.25;
+      for (const [r, ang, m, hue] of [[340, 0.8, 1, 55], [480, 3.0, 5, 150]]) {
+        const v = orbitSpeed(2000, m, r) * Math.sqrt(1 + 0.75 * mu * (sep / r) * (sep / r));
+        const x = r * Math.cos(ang), y = r * Math.sin(ang);
+        add(body(x, y, (y / r) * v, (-x / r) * v, m, hue));
+      }
+    } else if (name === 'eight') {
+      // Chenciner–Montgomery figure-eight: three equal masses chasing each other on one curve.
+      const L = 150, m = 400, vs = Math.sqrt(G * m / L);
+      const px = 0.97000436, py = -0.24308753, v3x = -0.93240737, v3y = -0.86473146;
+      add(body(px * L, py * L, -v3x / 2 * vs, -v3y / 2 * vs, m, 0));
+      add(body(-px * L, -py * L, -v3x / 2 * vs, -v3y / 2 * vs, m, 130));
+      add(body(0, 0, v3x * vs, v3y * vs, m, 262));
+    }
+    if (B.length) {
+      zeroMomentum(B);
+      const c = com(B);
+      for (const b of B) { b.x -= c.x; b.y -= c.y; }
+      accel(B, null);
+    }
+    return B;
+  }
+
+  // Period of the scaled figure-eight (for testing): T = 6.32591398 * L / sqrt(G m / L)
+  const EIGHT_PERIOD = 6.32591398 * 150 / Math.sqrt(G * 400 / 150);
+
+  return { G, EPS, DT, radiusFor, body, accel, step, compact, com, zeroMomentum, energy,
+           orbitSpeed, orbitAround, planOrbit, scene, mixHue, EIGHT_PERIOD };
+})();
+/*PHYSICS-END*/
+
+/* ================= APP (screen, touch, drawing) ================= */
+(function () {
+  const DT = Phys.DT;
+  const cvs = document.getElementById('sky');
+  const ctx = cvs.getContext('2d', { alpha: false });
+  const $ = (id) => document.getElementById(id);
+
+  // Quality tiers: the app steps down automatically on slow phones so it never freezes.
+  const Q = [
+    { dprCap: 1,   chunks: 8,  ghostBudget: 40000,  stepBudget: 70000,  sparks: 120, dotStep: 2 },
+    { dprCap: 1.5, chunks: 12, ghostBudget: 90000,  stepBudget: 150000, sparks: 250, dotStep: 1 },
+    { dprCap: 2,   chunks: 18, ghostBudget: 160000, stepBudget: 300000, sparks: 400, dotStep: 1 },
+  ];
+  let quality = 2;
+
+  // Mass presets. The chip dot grows with mass; each new world takes the next spectrum colour.
+  const MASSES = [
+    { name: 'Rock', m: 1, dot: 6 }, { name: 'Moon', m: 5, dot: 8 }, { name: 'Planet', m: 25, dot: 10 },
+    { name: 'Giant', m: 120, dot: 13 }, { name: 'Star', m: 1000, dot: 16 },
+  ];
+  const SPECTRUM = [0, 28, 52, 118, 188, 228, 272];   // red, orange, yellow, green, cyan, blue, violet
+  const TRAIL_CAP = 300, TRAIL_DT = 1 / 30, ESCAPE_R = 6000, MAX_BODIES = 120;
+  const FLING = 1.0, TAP_PX = 12, ZMIN = 0.05, ZMAX = 8, GHOST_DT = DT * 2;
+  const STAR_M = 500;
+
+  // Colour strings made once, so drawing never builds strings per frame.
+  const HUE = [], HUE_L = [];
+  for (let h = 0; h < 360; h++) { HUE.push('hsl(' + h + ',95%,62%)'); HUE_L.push('hsl(' + h + ',100%,84%)'); }
+  const LN_LO = Math.log(30), LN_SPAN = Math.log(700) - LN_LO;
+  function speedHue(v) {          // slow = red ... fast = violet
+    let t = (Math.log(v + 1e-3) - LN_LO) / LN_SPAN;
+    return (t < 0 ? 0 : t > 1 ? 1 : t) * 280;
+  }
+  const hueIdx = (h) => ((h | 0) % 360 + 360) % 360;
+
+  // ---------- state ----------
+  let W = 0, H = 0, dpr = 1, SCX = 0, SCY = 0;
+  let bodies = [];
+  const pairs = [];
+  let remnants = [], sparks = [], flashes = [];
+  let camX = 0, camY = 0, zoom = 1, follow = true;
+  let timeScale = 1, paused = false, acc = 0, trailClock = 0, slowed = false;
+  let trailLen = 150, glow = 1, trailMode = 'planet';
+  let massIdx = 2, specIdx = 0;
+  let menuOpen = true, launchedOnce = false, note = '', noteUntil = 0;
+
+  // ---------- trails (ring buffers of x, y, speed) ----------
+  function newTrail() { return { buf: new Float32Array(TRAIL_CAP * 3), head: 0, count: 0 }; }
+  function pushTrail(t, x, y, s) {
+    const k = t.head * 3;
+    t.buf[k] = x; t.buf[k + 1] = y; t.buf[k + 2] = s;
+    t.head = (t.head + 1) % TRAIL_CAP;
+    if (t.count < TRAIL_CAP) t.count++;
+  }
+  function recordTrails() {
+    for (const b of bodies) {
+      if (!b.trail) b.trail = newTrail();
+      pushTrail(b.trail, b.x, b.y, Math.hypot(b.vx, b.vy));
+    }
+  }
+  function retireTrail(b) {
+    if (b.trail && b.trail.count > 1) {
+      remnants.push({ t: b.trail, hue: b.hue, life: 1 });
+      if (remnants.length > 40) remnants.shift();
+    }
+  }
+
+  // ---------- collisions: sparks and a soft ring ----------
+  function onMerge(a, b) {
+    retireTrail(b);
+    const k = a.r / (a.r + b.r);
+    const cx = a.x + (b.x - a.x) * k, cy = a.y + (b.y - a.y) * k;
+    const M = a.m + b.m, vx = (a.vx * a.m + b.vx * b.m) / M, vy = (a.vy * a.m + b.vy * b.m) / M;
+    const rel = Math.hypot(a.vx - b.vx, a.vy - b.vy);
+    const cnt = Math.min(36, 8 + Math.round(6 * Math.cbrt(b.m)));
+    const cap = Q[quality].sparks;
+    for (let i = 0; i < cnt && sparks.length < cap; i++) {
+      const ang = Math.random() * Math.PI * 2, sp = (15 + rel * 0.35) * (0.3 + Math.random());
+      sparks.push({ x: cx, y: cy, vx: vx + Math.cos(ang) * sp, vy: vy + Math.sin(ang) * sp,
+                    life: 1, span: 0.6 + Math.random() * 0.9, hue: (b.hue + i * 360 / cnt) % 360 });
+    }
+    flashes.push({ x: cx, y: cy, vx, vy, r: Math.max(b.r * 1.6, a.r * 0.9), life: 1, hue: b.hue });
+  }
+
+  function updateFx(simAdv, rdt) {
+    if (!paused) {
+      for (const r of remnants) r.life -= rdt / 2;
+      remnants = remnants.filter((r) => r.life > 0);
+    }
+    if (simAdv > 0) {
+      const drag = Math.exp(-1.2 * simAdv);
+      for (const p of sparks) { p.x += p.vx * simAdv; p.y += p.vy * simAdv; p.vx *= drag; p.vy *= drag; p.life -= simAdv / p.span; }
+      sparks = sparks.filter((p) => p.life > 0);
+      for (const f of flashes) { f.x += f.vx * simAdv; f.y += f.vy * simAdv; f.life -= simAdv / 0.7; }
+      flashes = flashes.filter((f) => f.life > 0);
+    }
+  }
+
+  // Remove broken or far-escaped worlds, then re-centre momentum.
+  function cullEscapees() {
+    let removed = false;
+    for (const b of bodies) {
+      if (!(isFinite(b.x) && isFinite(b.y) && isFinite(b.vx) && isFinite(b.vy))) { b.dead = true; removed = true; }
+    }
+    if (removed) Phys.compact(bodies);
+    if (bodies.length > 1) {
+      const c = Phys.com(bodies), R2 = ESCAPE_R * ESCAPE_R;
+      for (const b of bodies) {
+        const dx = b.x - c.x, dy = b.y - c.y;
+        if (dx * dx + dy * dy > R2) { b.dead = true; removed = true; retireTrail(b); }
+      }
+    }
+    if (removed) { Phys.compact(bodies); Phys.zeroMomentum(bodies); Phys.accel(bodies, null); }
+  }
+
+  // ---------- camera ----------
+  const toWorld = (sx, sy) => ({ x: camX + (sx - SCX) / zoom, y: camY + (sy - SCY) / zoom });
+  const toScreen = (x, y) => ({ x: (x - camX) * zoom + SCX, y: (y - camY) * zoom + SCY });
+  const clampZ = (z) => Math.max(ZMIN, Math.min(ZMAX, z));
+  function fitZoom() {
+    if (!bodies.length) return;
+    const c = Phys.com(bodies);
+    let R = 80;
+    for (const b of bodies) R = Math.max(R, Math.hypot(b.x - c.x, b.y - c.y) + b.r);
+    zoom = clampZ(Math.min(W, H * 0.78) * 0.47 / R);
+  }
+  function updateCamera(rdt) {
+    if (follow && !pinch && bodies.length) {
+      const c = Phys.com(bodies), k = 1 - Math.exp(-rdt * 2.5);
+      camX += (c.x - camX) * k; camY += (c.y - camY) * k;
+    }
+  }
+
+  // ---------- launching ----------
+  function peekHue() { return SPECTRUM[specIdx % SPECTRUM.length]; }
+  function takeHue() { const h = peekHue(); specIdx++; return h; }
+
+  function currentPlan() {
+    if (!aim) return null;
+    const m = MASSES[massIdx].m;
+    const sp = toScreen(aim.wx, aim.wy);
+    const dx = aim.cx - sp.x, dy = aim.cy - sp.y, d = Math.hypot(dx, dy);
+    if (d < TAP_PX) {
+      const p = Phys.planOrbit(bodies, aim.wx, aim.wy, m);
+      return { x: aim.wx, y: aim.wy, m, vx: p.vx, vy: p.vy, recoil: p.recoil, orbit: true, d };
+    }
+    // Screen-relative fling: the same drag gives the same on-screen speed at any zoom.
+    const s = FLING * d * (1 + d / 400) / zoom;
+    return { x: aim.wx, y: aim.wy, m, vx: dx / d * s, vy: dy / d * s, recoil: null, orbit: false, d };
+  }
+
+  function launch() {
+    const p = currentPlan();
+    if (!p) return;
+    if (bodies.length >= MAX_BODIES) { showNote('Space is full, tap Clear'); return; }
+    if (p.recoil) { const a = bodies[p.recoil.i]; a.vx += p.recoil.dvx; a.vy += p.recoil.dvy; }
+    const b = Phys.body(p.x, p.y, p.vx, p.vy, p.m, takeHue());
+    b.trail = newTrail();
+    pushTrail(b.trail, b.x, b.y, Math.hypot(b.vx, b.vy));
+    bodies.push(b);
+    Phys.zeroMomentum(bodies);
+    Phys.accel(bodies, null);
+    if (!launchedOnce) { launchedOnce = true; $('hint').style.opacity = '0'; }
+  }
+
+  // ---------- predicted path while aiming (same integrator, run ahead on a copy) ----------
+  const gPool = [], gBodies = [], gPairs = [];
+  const ghost = { xs: new Float32Array(260), ys: new Float32Array(260), ss: new Float32Array(260), n: 0, hit: false, hx: 0, hy: 0 };
+  function gObj() { return { x: 0, y: 0, vx: 0, vy: 0, ax: 0, ay: 0, m: 0, r: 0, hue: 0, dead: false, trail: null }; }
+  function computeGhost(p) {
+    ghost.n = 0; ghost.hit = false;
+    const n = bodies.length;
+    if (!n) return;
+    while (gPool.length < n + 1) gPool.push(gObj());
+    gBodies.length = 0;
+    for (let i = 0; i < n; i++) {
+      const s = bodies[i], g = gPool[i];
+      g.x = s.x; g.y = s.y; g.vx = s.vx; g.vy = s.vy; g.m = s.m; g.r = s.r; g.hue = s.hue; g.dead = false;
+      gBodies.push(g);
+    }
+    if (p.recoil) { const g = gBodies[p.recoil.i]; g.vx += p.recoil.dvx; g.vy += p.recoil.dvy; }
+    const nb = gPool[n];
+    nb.x = p.x; nb.y = p.y; nb.vx = p.vx; nb.vy = p.vy; nb.m = p.m; nb.r = Phys.radiusFor(p.m); nb.dead = false;
+    gBodies.push(nb);
+    Phys.zeroMomentum(gBodies);
+    Phys.accel(gBodies, null);
+    const pr = (n + 1) * n / 2 + n + 1;
+    const steps = Math.max(30, Math.min(720, Math.floor(Q[quality].ghostBudget / pr)));
+    const every = Math.max(1, Math.ceil(steps / 250));
+    const rec = () => { const k = ghost.n++; ghost.xs[k] = nb.x; ghost.ys[k] = nb.y; ghost.ss[k] = Math.hypot(nb.vx, nb.vy); };
+    rec();
+    for (let s = 1; s <= steps; s++) {
+      Phys.step(gBodies, GHOST_DT, gPairs, null);
+      if (nb.dead) { ghost.hit = true; ghost.hx = nb.x; ghost.hy = nb.y; break; }
+      if (s % every === 0 && ghost.n < 259) rec();
+    }
+  }
+
+  // ---------- scenes ----------
+  function loadScene(name) {
+    bodies = Phys.scene(name);
+    for (const b of bodies) { b.trail = newTrail(); pushTrail(b.trail, b.x, b.y, Math.hypot(b.vx, b.vy)); }
+    remnants = []; sparks = []; flashes = [];
+    acc = 0; trailClock = 0; specIdx = 0;
+    camX = 0; camY = 0;
+    if (bodies.length) fitZoom(); else zoom = 1;
+  }
+  function clearAll() {
+    bodies.length = 0; remnants = []; sparks = []; flashes = []; acc = 0;
+  }
+
+  // ---------- background stars (gentle parallax) ----------
+  let stars = [];
+  function genStars() {
+    stars = [];
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const count = Math.round(Math.min(260, (W * H) / 2200));
+    for (let i = 0; i < count; i++) {
+      const h = Math.floor(rnd() * 360), a = 0.25 + rnd() * 0.55;
+      stars.push({ u: rnd(), v: rnd(), s: rnd() < 0.12 ? 1.6 : 1, c: 'hsla(' + h + ',70%,85%,' + a.toFixed(2) + ')' });
+    }
+  }
+  function drawStars() {
+    const ox = -camX * zoom * 0.04, oy = -camY * zoom * 0.04;
+    for (const s of stars) {
+      let x = (s.u * W + ox) % W; if (x < 0) x += W;
+      let y = (s.v * H + oy) % H; if (y < 0) y += H;
+      ctx.fillStyle = s.c;
+      ctx.fillRect(x, y, s.s, s.s);
+    }
+  }
+
+  // ---------- drawing ----------
+  const SPR = [];
+  function sprite(h) {
+    const k = Math.round(h / 10) % 36;
+    if (SPR[k]) return SPR[k];
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d'), hh = k * 10;
+    const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'hsla(' + hh + ',100%,80%,0.95)');
+    gr.addColorStop(0.22, 'hsla(' + hh + ',100%,62%,0.5)');
+    gr.addColorStop(0.55, 'hsla(' + hh + ',100%,55%,0.14)');
+    gr.addColorStop(1, 'hsla(' + hh + ',100%,50%,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+    return (SPR[k] = c);
+  }
+
+  function drawTrail(t, hue, alpha, tip, lw) {
+    const n = Math.min(t.count, trailLen);
+    if (n < 2 || alpha <= 0) return;
+    const buf = t.buf, start = (t.head - n + TRAIL_CAP) % TRAIL_CAP;
+    const chunks = Math.max(1, Math.min(Q[quality].chunks, Math.floor(n / 3)));
+    const per = Math.ceil((n - 1) / chunks);
+    ctx.lineWidth = lw;
+    for (let c = 0; c < chunks; c++) {
+      const i0 = c * per, i1 = Math.min(n - 1, i0 + per);
+      if (i1 <= i0) break;
+      ctx.beginPath();
+      let k = (start + i0) % TRAIL_CAP;
+      ctx.moveTo(buf[k * 3], buf[k * 3 + 1]);
+      for (let i = i0 + 1; i <= i1; i++) { k = (start + i) % TRAIL_CAP; ctx.lineTo(buf[k * 3], buf[k * 3 + 1]); }
+      const last = i1 === n - 1;
+      if (last && tip) ctx.lineTo(tip.x, tip.y);
+      const mid = (start + ((i0 + i1) >> 1)) % TRAIL_CAP;
+      const h = trailMode === 'speed' ? speedHue(buf[mid * 3 + 2]) : hue;
+      const f = (i1 + 1) / n;
+      ctx.globalAlpha = alpha * f * f;
+      ctx.strokeStyle = HUE[hueIdx(h)];
+      ctx.stroke();
+    }
+  }
+
+  function render(plan) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#05040d';
+    ctx.fillRect(0, 0, W, H);
+    drawStars();
+
+    ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, dpr * (SCX - camX * zoom), dpr * (SCY - camY * zoom));
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const lw = 1.7 / zoom, tAlpha = Math.min(1, 0.85 * glow + 0.15);
+
+    if (trailLen > 0) {
+      for (const r of remnants) drawTrail(r.t, r.hue, r.life * tAlpha, null, lw);
+      for (const b of bodies) if (b.trail) drawTrail(b.trail, b.hue, tAlpha, b, b.m >= STAR_M ? lw * 1.5 : lw);
+    }
+
+    // view bounds for culling
+    const vx0 = camX - SCX / zoom, vx1 = camX + (W - SCX) / zoom;
+    const vy0 = camY - SCY / zoom, vy1 = camY + (H - SCY) / zoom;
+    const visible = (b, pad) => b.x + pad > vx0 && b.x - pad < vx1 && b.y + pad > vy0 && b.y - pad < vy1;
+
+    if (glow > 0) {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = Math.min(1, 0.85 * glow);
+      for (const b of bodies) {
+        const s = Math.max(b.r * (b.m >= STAR_M ? 5 : 3.4), 9 / zoom);
+        if (visible(b, s)) ctx.drawImage(sprite(b.hue), b.x - s, b.y - s, s * 2, s * 2);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    ctx.globalAlpha = 1;
+    const minR = 1.8 / zoom;
+    for (const b of bodies) {
+      const r = Math.max(b.r, minR);
+      if (!visible(b, r)) continue;
+      const h = hueIdx(b.hue);
+      ctx.fillStyle = HUE[h];
+      ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); ctx.fill();
+      if (b.m >= STAR_M) {
+        ctx.fillStyle = 'rgba(255,250,236,0.9)';
+        ctx.beginPath(); ctx.arc(b.x, b.y, r * 0.6, 0, Math.PI * 2); ctx.fill();
+      } else if (b.r * zoom > 3) {
+        ctx.fillStyle = HUE_L[h];
+        ctx.beginPath(); ctx.arc(b.x - r * 0.3, b.y - r * 0.3, r * 0.42, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    if (sparks.length || flashes.length) {
+      ctx.globalCompositeOperation = 'lighter';
+      const ps = 1.5 / zoom;
+      for (const p of sparks) {
+        ctx.globalAlpha = Math.min(1, p.life * (0.4 + 0.6 * glow));
+        ctx.fillStyle = HUE[hueIdx(p.hue)];
+        ctx.fillRect(p.x - ps, p.y - ps, ps * 2, ps * 2);
+      }
+      ctx.lineWidth = 2 / zoom;
+      for (const f of flashes) {
+        ctx.globalAlpha = 0.45 * f.life;
+        ctx.strokeStyle = HUE_L[hueIdx(f.hue)];
+        ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (1 + 1.5 * (1 - f.life)), 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    if (plan) drawAim(plan);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawAim(p) {
+    // predicted path: rainbow dots fading out with time
+    const ds = Q[quality].dotStep, dr = 1.9 / zoom, gh = peekHue();
+    for (let i = 0; i < ghost.n; i += ds) {
+      const t = i / ghost.n;
+      ctx.globalAlpha = 0.95 * (1 - t) + 0.05;
+      ctx.fillStyle = HUE[hueIdx(trailMode === 'speed' ? speedHue(ghost.ss[i]) : gh)];
+      ctx.beginPath(); ctx.arc(ghost.xs[i], ghost.ys[i], dr, 0, Math.PI * 2); ctx.fill();
+    }
+    if (ghost.hit) {
+      ctx.globalAlpha = 0.8; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 / zoom;
+      ctx.beginPath(); ctx.arc(ghost.hx, ghost.hy, 9 / zoom, 0, Math.PI * 2); ctx.stroke();
+    }
+    // the world-to-be and the fling arrow, in screen space
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const sp = toScreen(p.x, p.y), rr = Math.max(Phys.radiusFor(p.m) * zoom, 4);
+    ctx.globalAlpha = 0.6; ctx.fillStyle = HUE[hueIdx(gh)];
+    ctx.beginPath(); ctx.arc(sp.x, sp.y, rr, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.85; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    if (p.orbit) {
+      ctx.setLineDash([4, 5]);
+      ctx.beginPath(); ctx.arc(sp.x, sp.y, rr + 7, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+    } else {
+      const ex = aim.cx, ey = aim.cy, ang = Math.atan2(ey - sp.y, ex - sp.x);
+      ctx.beginPath(); ctx.moveTo(sp.x, sp.y); ctx.lineTo(ex, ey);
+      ctx.moveTo(ex, ey); ctx.lineTo(ex - 12 * Math.cos(ang - 0.45), ey - 12 * Math.sin(ang - 0.45));
+      ctx.moveTo(ex, ey); ctx.lineTo(ex - 12 * Math.cos(ang + 0.45), ey - 12 * Math.sin(ang + 0.45));
+      ctx.stroke();
+    }
+  }
+
+  // ---------- status line ----------
+  let lastStatus = '';
+  function showNote(t) { note = t; noteUntil = performance.now() + 2500; }
+  function fmtScale(s) { return (s < 1 ? s.toFixed(2) : s.toFixed(1)) + '×'; }
+  function updateStatus(now) {
+    const n = bodies.length;
+    let s = n + (n === 1 ? ' body' : ' bodies') + ' · ' + fmtScale(timeScale);
+    if (paused) s += ' · paused'; else if (slowed) s += ' · slowed';
+    if (note && now < noteUntil) s += ' · ' + note;
+    if (s !== lastStatus) { $('status').textContent = s; lastStatus = s; }
+  }
+
+  // ---------- automatic frame-rate step-down for budget phones ----------
+  let ema = 16, slowFor = 0, fastFor = 0, lastDrop = -1e9;
+  function perf(ms, now) {
+    ema += (ms - ema) * 0.05;
+    if (ema > 24) { slowFor += ms; fastFor = 0; } else if (ema < 13) { fastFor += ms; slowFor = 0; } else { slowFor = 0; fastFor = 0; }
+    if (slowFor > 1500 && quality > 0) { quality--; slowFor = 0; ema = 16; lastDrop = now; resize(); }
+    else if (fastFor > 15000 && quality < 2 && now - lastDrop > 60000) { quality++; fastFor = 0; resize(); }
+  }
+
+  // ---------- main loop ----------
+  let last = performance.now();
+  function frame(now) {
+    requestAnimationFrame(frame);
+    let ms = now - last; last = now;
+    if (!(ms > 0) || ms > 250) ms = 16.7;   // resumed from background
+    perf(ms, now);
+    const rdt = Math.min(ms / 1000, 0.1);
+    let simAdv = 0;
+    slowed = false;
+    if (!paused && bodies.length) {
+      acc += rdt * timeScale;
+      let need = Math.floor(acc / DT);
+      const n = bodies.length, pr = n * (n - 1) / 2 + n;
+      const maxSteps = Math.max(2, Math.min(64, Math.floor(Q[quality].stepBudget / pr)));
+      if (need > maxSteps) { slowed = true; need = maxSteps; acc = DT * 0.5; } else acc -= need * DT;
+      for (let s = 0; s < need; s++) {
+        Phys.step(bodies, DT, pairs, onMerge);
+        trailClock += DT;
+        if (trailClock >= TRAIL_DT) { trailClock -= TRAIL_DT; recordTrails(); }
+      }
+      simAdv = need * DT;
+      if (need) cullEscapees();
+    }
+    updateFx(simAdv, rdt);
+    updateCamera(rdt);
+    let plan = null;
+    if (aim) { plan = currentPlan(); computeGhost(plan); }
+    render(plan);
+    updateStatus(now);
+  }
+
+  function resize() {
+    W = window.innerWidth; H = window.innerHeight;
+    dpr = Math.min(window.devicePixelRatio || 1, Q[quality].dprCap);
+    cvs.width = Math.round(W * dpr); cvs.height = Math.round(H * dpr);
+    SCX = W / 2; SCY = H * 0.45;
+    genStars();
+  }
+
+  // ---------- touch: one finger aims, two fingers zoom and pan ----------
+  const ptrs = new Map(), ignore = new Set();
+  let aim = null, pinch = null;
+
+  function startPinch() {
+    const [a, b] = [...ptrs.values()];
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: zoom, mx0: mx, my0: my, w: toWorld(mx, my) };
+  }
+  function movePinch() {
+    const [a, b] = [...ptrs.values()];
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    zoom = clampZ(pinch.z0 * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d0);
+    camX = pinch.w.x - (mx - SCX) / zoom; camY = pinch.w.y - (my - SCY) / zoom;
+    if (follow && Math.hypot(mx - pinch.mx0, my - pinch.my0) > 30) setFollow(false);
+  }
+
+  cvs.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    try { cvs.setPointerCapture(e.pointerId); } catch (_) {}
+    if (menuOpen) { setMenu(false); ignore.add(e.pointerId); return; }
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 1) {
+      const w = toWorld(e.clientX, e.clientY);
+      aim = { id: e.pointerId, wx: w.x, wy: w.y, cx: e.clientX, cy: e.clientY };
+    } else if (ptrs.size === 2) { aim = null; startPinch(); }
+  });
+  cvs.addEventListener('pointermove', (e) => {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch) movePinch();
+    else if (aim && aim.id === e.pointerId) { aim.cx = e.clientX; aim.cy = e.clientY; }
+  });
+  function endPointer(e) {
+    if (ignore.delete(e.pointerId)) return;
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.delete(e.pointerId);
+    if (pinch) {
+      if (ptrs.size < 2) { pinch = null; for (const id of ptrs.keys()) ignore.add(id); ptrs.clear(); }
+      return;
+    }
+    if (aim && aim.id === e.pointerId) { if (e.type === 'pointerup') launch(); aim = null; }
+  }
+  cvs.addEventListener('pointerup', endPointer);
+  cvs.addEventListener('pointercancel', endPointer);
+  cvs.addEventListener('contextmenu', (e) => e.preventDefault());
+  cvs.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const w = toWorld(e.clientX, e.clientY);
+    zoom = clampZ(zoom * Math.exp(-e.deltaY * 0.0015));
+    camX = w.x - (e.clientX - SCX) / zoom; camY = w.y - (e.clientY - SCY) / zoom;
+  }, { passive: false });
+
+  // ---------- menu ----------
+  function setMenu(open) {
+    menuOpen = open;
+    $('panel').hidden = !open;
+    $('dots').classList.toggle('on', open);
+  }
+  // First tap anywhere outside the menu folds it (the canvas handles its own taps).
+  document.addEventListener('pointerdown', (e) => {
+    if (!menuOpen || e.target === cvs || $('panel').contains(e.target) || e.target === $('dots')) return;
+    setMenu(false);
+  }, true);
+
+  function setFollow(on) {
+    follow = on;
+    for (const b of $('cam').children) b.classList.toggle('on', (b.dataset.v === 'centre') === on);
+  }
+  function setMass(i) {
+    massIdx = i;
+    [...$('masses').children].forEach((b, k) => b.classList.toggle('on', k === i));
+  }
+  MASSES.forEach((M, i) => {
+    const b = document.createElement('button');
+    b.innerHTML = '<span class="dot" style="width:' + M.dot + 'px;height:' + M.dot + 'px"></span>' + M.name;
+    b.addEventListener('click', () => setMass(i));
+    $('masses').appendChild(b);
+  });
+  setMass(massIdx);
+
+  $('dots').addEventListener('click', () => setMenu(!menuOpen));
+  $('pause').addEventListener('click', () => { paused = !paused; $('pause').textContent = paused ? 'Play' : 'Pause'; });
+  $('clear').addEventListener('click', clearAll);
+
+  const T_MIN = 0.1, T_MAX = 4, T_RATIO = Math.log(T_MAX / T_MIN);
+  const timeEl = $('time');
+  timeEl.value = String(100 * Math.log(1 / T_MIN) / T_RATIO);
+  function onTime() {
+    let s = T_MIN * Math.exp(T_RATIO * (+timeEl.value) / 100);
+    if (Math.abs(s - 1) < 0.06) s = 1;
+    timeScale = s; $('timeVal').textContent = fmtScale(s);
+  }
+  timeEl.addEventListener('input', onTime); onTime();
+
+  const trailEl = $('trail');
+  function onTrail() {
+    trailLen = +trailEl.value;
+    $('trailVal').textContent = trailLen ? Math.round(trailLen * TRAIL_DT) + ' s' : 'Off';
+  }
+  trailEl.addEventListener('input', onTrail); onTrail();
+
+  const glowEl = $('glow');
+  function onGlow() { glow = +glowEl.value / 100; $('glowVal').textContent = glowEl.value + '%'; }
+  glowEl.addEventListener('input', onGlow); onGlow();
+
+  for (const b of $('tcol').children) b.addEventListener('click', () => {
+    trailMode = b.dataset.v;
+    for (const o of $('tcol').children) o.classList.toggle('on', o === b);
+  });
+  for (const b of $('cam').children) b.addEventListener('click', () => setFollow(b.dataset.v === 'centre'));
+  for (const b of $('scenes').children) b.addEventListener('click', () => loadScene(b.dataset.v));
+
+  window.addEventListener('resize', resize);
+  resize();
+  loadScene('sun');
+  requestAnimationFrame((t) => { last = t; frame(t); });
+
+  // Offline: when served over http(s), cache the app so it runs with no signal.
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+  }
+})();
+</script>
+</body>
+</html>
